@@ -48,9 +48,24 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
       const res = await calendarAPI.getCalendarById(calId);
       setActiveCalendar(res.data.calendar);
       setPosts(res.data.posts || []);
+
       if (res.data.calendar) {
-        setMonth(res.data.calendar.month);
-        setYear(res.data.calendar.year);
+        if (res.data.calendar.startDate) {
+          const sDate = new Date(res.data.calendar.startDate);
+          if (!isNaN(sDate.getTime())) {
+            setMonth(sDate.getMonth() + 1);
+            setYear(sDate.getFullYear());
+          }
+        } else if (res.data.calendar.month) {
+          setMonth(res.data.calendar.month);
+          setYear(res.data.calendar.year);
+        }
+      } else if (res.data.posts && res.data.posts.length > 0 && res.data.posts[0].date) {
+        const pDate = new Date(res.data.posts[0].date);
+        if (!isNaN(pDate.getTime())) {
+          setMonth(pDate.getMonth() + 1);
+          setYear(pDate.getFullYear());
+        }
       }
     } catch (err) {
       showToast('Failed to load calendar details', 'error');
