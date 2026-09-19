@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
     "autoprefixer": "^10.6.1",
     "axios": "^1.6.8",
     "jspdf": "^4.2.1",
