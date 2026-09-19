@@ -10,14 +10,15 @@ const mockPosts = [];
 exports.generateCalendar = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { brandId, month, year, topicNiche, goals, postFrequency } = req.body;
+    const { brandId, startDate, month, year, topicNiche, goals } = req.body;
 
-    if (!brandId || !month || !year) {
-      return res.status(400).json({ message: 'brandId, month, and year are required' });
+    if (!brandId) {
+      return res.status(400).json({ message: 'brandId is required' });
     }
 
-    const targetMonth = parseInt(month, 10);
-    const targetYear = parseInt(year, 10);
+    const start = startDate ? new Date(startDate) : new Date();
+    const targetMonth = month ? parseInt(month, 10) : start.getMonth() + 1;
+    const targetYear = year ? parseInt(year, 10) : start.getFullYear();
 
     const { useMockStore } = getDBStatus();
 
@@ -28,36 +29,35 @@ exports.generateCalendar = async (req, res) => {
       if (!brand) {
         brand = {
           _id: brandId,
+          brandName: 'Demo Brand',
           name: 'Demo Brand',
           industry: 'Technology',
           targetAudience: 'Creators & Entrepreneurs',
           tone: 'Professional',
-          platforms: ['Instagram', 'LinkedIn', 'X/Twitter'],
-          keywords: ['innovation', 'growth'],
+          platforms: ['Instagram', 'LinkedIn', 'X'],
         };
       }
     } else {
       brand = await Brand.findOne({ _id: brandId, user: userId });
       if (!brand) {
-        return res.status(404).json({ message: 'Selected brand profile not found' });
+        return res.status(404).json({ message: 'Selected brand profile not found or unauthorized' });
       }
     }
 
-    // Call AI Service
+    // Generate ~30 posts
     const generatedPostsData = await generateCalendarPosts({
       brand,
+      startDate: start,
       month: targetMonth,
       year: targetYear,
-      topicNiche: topicNiche || brand.industry,
-      goals: goals || 'Brand Growth & Engagement',
-      postFrequency: postFrequency || 'daily',
     });
 
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
-    const calendarTitle = `${brand.name} - ${monthNames[targetMonth - 1] || 'Month'} ${targetYear}`;
+    const bName = brand.brandName || brand.name || 'Brand';
+    const calendarTitle = `${bName} - ${monthNames[targetMonth - 1] || 'Month'} ${targetYear}`;
 
     if (useMockStore) {
       const calendarId = 'mock_cal_' + Date.now();
@@ -68,8 +68,9 @@ exports.generateCalendar = async (req, res) => {
         title: calendarTitle,
         month: targetMonth,
         year: targetYear,
-        topicNiche: topicNiche || '',
-        goals: goals || '',
+        startDate: start,
+        topicNiche: topicNiche || brand.industry || '',
+        goals: goals || brand.postingGoals || '',
         postsCount: generatedPostsData.length,
         createdAt: new Date(),
       };
@@ -81,16 +82,15 @@ exports.generateCalendar = async (req, res) => {
         user: userId,
         brand: brandId,
         date: p.date,
-        timeSlot: p.timeSlot,
         platform: p.platform,
-        title: p.title,
+        postType: p.postType,
+        idea: p.idea,
+        title: p.idea,
         caption: p.caption,
         hashtags: p.hashtags,
-        postType: p.postType,
-        imagePrompt: p.imagePrompt,
-        engagementTip: p.engagementTip,
         status: p.status,
         createdAt: new Date(),
+        updatedAt: new Date(),
       }));
 
       mockPosts.push(...createdPosts);
@@ -108,8 +108,9 @@ exports.generateCalendar = async (req, res) => {
       title: calendarTitle,
       month: targetMonth,
       year: targetYear,
-      topicNiche: topicNiche || '',
-      goals: goals || '',
+      startDate: start,
+      topicNiche: topicNiche || brand.industry || '',
+      goals: goals || brand.postingGoals || '',
       postsCount: generatedPostsData.length,
     });
 
@@ -143,7 +144,7 @@ exports.getCalendars = async (req, res) => {
       return res.json({ calendars: userCals });
     }
 
-    const calendars = await Calendar.find({ user: userId }).sort({ createdAt: -1 }).populate('brand', 'name industry tone');
+    const calendars = await Calendar.find({ user: userId }).sort({ createdAt: -1 }).populate('brand', 'brandName name industry tone');
     return res.json({ calendars });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch calendars' });
@@ -158,18 +159,109 @@ exports.getCalendarById = async (req, res) => {
 
     if (useMockStore) {
       const calendar = mockCalendars.find(c => c._id === id && c.user === userId);
-      if (!calendar) return res.status(404).json({ message: 'Calendar not found' });
+      if (!calendar) return res.status(404).json({ message: 'Calendar not found or unauthorized' });
       const posts = mockPosts.filter(p => p.calendar === id && p.user === userId);
       return res.json({ calendar, posts });
     }
 
     const calendar = await Calendar.findOne({ _id: id, user: userId }).populate('brand');
-    if (!calendar) return res.status(404).json({ message: 'Calendar not found' });
+    if (!calendar) return res.status(404).json({ message: 'Calendar not found or unauthorized' });
 
     const posts = await Post.find({ calendar: id, user: userId }).sort({ date: 1 });
     return res.json({ calendar, posts });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch calendar detail' });
+  }
+};
+
+exports.exportJSON = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { useMockStore } = getDBStatus();
+
+    let calendar;
+    let posts;
+
+    if (useMockStore) {
+      calendar = mockCalendars.find(c => c._id === id && c.user === userId);
+      if (!calendar) return res.status(404).json({ message: 'Calendar not found' });
+      posts = mockPosts.filter(p => p.calendar === id && p.user === userId);
+    } else {
+      calendar = await Calendar.findOne({ _id: id, user: userId }).populate('brand');
+      if (!calendar) return res.status(404).json({ message: 'Calendar not found' });
+      posts = await Post.find({ calendar: id, user: userId }).sort({ date: 1 });
+    }
+
+    const exportData = {
+      calendarTitle: calendar.title,
+      month: calendar.month,
+      year: calendar.year,
+      exportedAt: new Date().toISOString(),
+      posts: posts.map(p => ({
+        id: p._id,
+        date: p.date ? new Date(p.date).toISOString().split('T')[0] : '',
+        platform: p.platform,
+        postType: p.postType,
+        idea: p.idea || p.title,
+        caption: p.caption,
+        hashtags: p.hashtags,
+        status: p.status,
+      }))
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="calendar_${id}.json"`);
+    return res.send(JSON.stringify(exportData, null, 2));
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to export calendar JSON', error: error.message });
+  }
+};
+
+exports.exportCSV = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { useMockStore } = getDBStatus();
+
+    let calendar;
+    let posts;
+
+    if (useMockStore) {
+      calendar = mockCalendars.find(c => c._id === id && c.user === userId);
+      if (!calendar) return res.status(404).json({ message: 'Calendar not found' });
+      posts = mockPosts.filter(p => p.calendar === id && p.user === userId);
+    } else {
+      calendar = await Calendar.findOne({ _id: id, user: userId });
+      if (!calendar) return res.status(404).json({ message: 'Calendar not found' });
+      posts = await Post.find({ calendar: id, user: userId }).sort({ date: 1 });
+    }
+
+    const escapeCSV = (str) => {
+      if (!str) return '""';
+      const escaped = String(str).replace(/"/g, '""');
+      return `"${escaped}"`;
+    };
+
+    let csvContent = 'Date,Platform,PostType,Idea,Caption,Hashtags,Status\n';
+
+    posts.forEach(p => {
+      const dateStr = p.date ? new Date(p.date).toISOString().split('T')[0] : '';
+      const platformStr = p.platform || '';
+      const postTypeStr = p.postType || '';
+      const ideaStr = p.idea || p.title || '';
+      const captionStr = p.caption || '';
+      const hashtagsStr = Array.isArray(p.hashtags) ? p.hashtags.join(' ') : '';
+      const statusStr = p.status || 'draft';
+
+      csvContent += `${escapeCSV(dateStr)},${escapeCSV(platformStr)},${escapeCSV(postTypeStr)},${escapeCSV(ideaStr)},${escapeCSV(captionStr)},${escapeCSV(hashtagsStr)},${escapeCSV(statusStr)}\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="calendar_${id}.csv"`);
+    return res.send(csvContent);
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to export calendar CSV', error: error.message });
   }
 };
 
@@ -183,8 +275,6 @@ exports.deleteCalendar = async (req, res) => {
       const index = mockCalendars.findIndex(c => c._id === id && c.user === userId);
       if (index === -1) return res.status(404).json({ message: 'Calendar not found' });
       mockCalendars.splice(index, 1);
-
-      // delete posts
       for (let i = mockPosts.length - 1; i >= 0; i--) {
         if (mockPosts[i].calendar === id) mockPosts.splice(i, 1);
       }

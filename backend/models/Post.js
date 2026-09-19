@@ -21,16 +21,16 @@ const PostSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    timeSlot: {
-      type: String,
-      default: '09:00 AM',
-    },
     platform: {
       type: String,
-      enum: ['Instagram', 'LinkedIn', 'X/Twitter', 'TikTok', 'Facebook', 'YouTube'],
+      enum: ['Instagram', 'LinkedIn', 'X', 'X/Twitter', 'TikTok', 'Facebook', 'YouTube'],
       required: true,
     },
-    title: {
+    postType: {
+      type: String,
+      default: 'Educational',
+    },
+    idea: {
       type: String,
       required: true,
     },
@@ -42,10 +42,9 @@ const PostSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    postType: {
+    timeSlot: {
       type: String,
-      enum: ['Single Image', 'Carousel', 'Reel / Short Video', 'Text Article', 'Poll / Question'],
-      default: 'Single Image',
+      default: '09:00 AM',
     },
     imagePrompt: {
       type: String,
@@ -63,5 +62,23 @@ const PostSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Virtual alias title <-> idea for frontend compatibility
+PostSchema.virtual('title').get(function () {
+  return this.idea;
+}).set(function (v) {
+  this.idea = v;
+});
+
+// Virtual aliases for calendarId and brandId
+PostSchema.virtual('calendarId').get(function () {
+  return this.calendar;
+});
+PostSchema.virtual('brandId').get(function () {
+  return this.brand;
+});
+
+PostSchema.set('toJSON', { virtuals: true });
+PostSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Post', PostSchema);
