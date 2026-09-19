@@ -1,107 +1,68 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import Toast from './components/Toast';
+import { CalendarProvider } from './context/CalendarContext';
+import Layout from './components/Layout';
 
+import LandingPage from './pages/LandingPage';
 import LoginRegister from './pages/LoginRegister';
 import Dashboard from './pages/Dashboard';
-import BrandProfile from './pages/BrandProfile';
 import ContentCalendar from './pages/ContentCalendar';
+import BrandProfile from './pages/BrandProfile';
+import AiGeneratorPage from './pages/AiGeneratorPage';
+import Analytics from './pages/Analytics';
 
-import AiGenerateModal from './components/AiGenerateModal';
-
-const AppContent = () => {
+// Protected Workspace wrapper
+const ProtectedWorkspace = () => {
   const { user, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [selectedCalendarId, setSelectedCalendarId] = useState(null);
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#94a3b8',
-          fontSize: '1.1rem',
-          fontWeight: 600,
-        }}
-      >
-        Initializing PostWise-AI...
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 text-sm font-semibold">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+          <span>Loading PostWise-AI Workspace...</span>
+        </div>
       </div>
     );
   }
 
+  // If not logged in, we still permit demo access or redirect to /login
   if (!user) {
-    return <LoginRegister />;
+    return <Navigate to="/login" replace />;
   }
 
-  const handleNavigate = (page) => {
-    setCurrentPage(page);
-  };
-
-  const handleSelectCalendar = (cal) => {
-    setSelectedCalendarId(cal._id);
-    setCurrentPage('calendar');
-  };
-
-  const handleCalendarGenerated = (calendar, posts) => {
-    setSelectedCalendarId(calendar._id);
-    setCurrentPage('calendar');
-  };
-
-  return (
-    <div className="app-container">
-      {/* Sidebar Navigation */}
-      <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
-
-      {/* Main Content Area */}
-      <div className="main-content">
-        <Navbar
-          onOpenAiGenerator={() => setIsAiModalOpen(true)}
-          onNavigate={handleNavigate}
-        />
-
-        <main style={{ flex: 1 }}>
-          {currentPage === 'dashboard' && (
-            <Dashboard
-              onNavigate={handleNavigate}
-              onOpenAiGenerator={() => setIsAiModalOpen(true)}
-              onSelectCalendar={handleSelectCalendar}
-            />
-          )}
-
-          {currentPage === 'brands' && <BrandProfile />}
-
-          {currentPage === 'calendar' && (
-            <ContentCalendar
-              selectedCalendarId={selectedCalendarId}
-              onOpenAiGenerator={() => setIsAiModalOpen(true)}
-            />
-          )}
-        </main>
-      </div>
-
-      {/* AI Generator Modal Wizard */}
-      <AiGenerateModal
-        isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        onGenerated={handleCalendarGenerated}
-      />
-
-      {/* Global Toast Alerts */}
-      <Toast />
-    </div>
-  );
+  return <Layout />;
 };
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider defaultTheme="light">
+      <BrowserRouter>
+        <AuthProvider>
+          <CalendarProvider>
+            <Routes>
+              {/* Public Marketing & Auth Pages */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginRegister />} />
+              <Route path="/register" element={<LoginRegister />} />
+
+              {/* Authenticated Workspace App Layout */}
+              <Route element={<ProtectedWorkspace />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/calendar" element={<ContentCalendar />} />
+                <Route path="/generate" element={<AiGeneratorPage />} />
+                <Route path="/brand" element={<BrandProfile />} />
+                <Route path="/analytics" element={<Analytics />} />
+              </Route>
+
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </CalendarProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

@@ -1,296 +1,337 @@
-import React, { useState } from 'react';
-import { Clock, Plus, Filter } from 'lucide-react';
-import { postAPI } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useRef, memo } from 'react';
+import { 
+  Plus, 
+  Instagram, 
+  Linkedin, 
+  Twitter, 
+  Image as ImageIcon, 
+  Video, 
+  Layers, 
+  FileText, 
+  HelpCircle,
+  RotateCw
+} from 'lucide-react';
+import { useCalendar } from '../context/CalendarContext';
 
-const CalendarGrid = ({ month, year, posts, onSelectPost, onAddPostAtDate, onPostRescheduled }) => {
-  const { showToast } = useAuth();
-  const [platformFilter, setPlatformFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
+// Helper icons for post types
+const getPostTypeIcon = (type) => {
+  switch (type) {
+    case 'Reel / Short Video':
+      return <Video className="w-3 h-3 text-rose-500" />;
+    case 'Carousel':
+      return <Layers className="w-3 h-3 text-indigo-500" />;
+    case 'Text Article':
+      return <FileText className="w-3 h-3 text-slate-500 dark:text-slate-400" />;
+    case 'Poll / Question':
+      return <HelpCircle className="w-3 h-3 text-amber-500" />;
+    default:
+      return <ImageIcon className="w-3 h-3 text-emerald-500" />;
+  }
+};
+
+// Platform badge
+const getPlatformBadge = (platform) => {
+  if (platform === 'Instagram') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-xs">
+        <Instagram className="w-2.5 h-2.5" />
+        IG
+      </span>
+    );
+  }
+  if (platform === 'LinkedIn') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0A66C2] text-white shadow-xs">
+        <Linkedin className="w-2.5 h-2.5" />
+        LinkedIn
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-900 dark:bg-slate-700 text-white shadow-xs">
+      <Twitter className="w-2.5 h-2.5" />
+      X
+    </span>
+  );
+};
+
+// Status indicator
+const getStatusBadge = (status) => {
+  switch (status) {
+    case 'published':
+      return <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Published" />;
+    case 'scheduled':
+      return <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" title="Scheduled" />;
+    default:
+      return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Draft" />;
+  }
+};
+
+// Individual Post Card component
+const PostCard = memo(({ post, onSelectPost, onRegenerate, isRegenerating }) => {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (e) => {
+    e.stopPropagation();
+    setIsDragging(true);
+    e.dataTransfer.setData('text/plain', post._id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = (e) => {
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onClick={() => onSelectPost && onSelectPost(post)}
+      className={`p-2 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-800/90 hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-card transition-shadow cursor-grab active:cursor-grabbing select-none group/card ${
+        isDragging ? 'opacity-30' : 'opacity-100'
+      } ${isRegenerating ? 'animate-pulse' : ''}`}
+    >
+      {/* Top row: Platform + Time + Quick Regenerate */}
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <div className="flex items-center gap-1.5">
+          {getPlatformBadge(post.platform)}
+          {getStatusBadge(post.status)}
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRegenerate(post._id);
+            }}
+            title="Quick regenerate with AI"
+            disabled={isRegenerating}
+            className="opacity-0 group-hover/card:opacity-100 p-0.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-opacity cursor-pointer"
+          >
+            <RotateCw className={`w-3 h-3 ${isRegenerating ? 'animate-spin text-indigo-600 dark:text-indigo-400' : ''}`} />
+          </button>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            {post.timeSlot?.split(' ')[0]}
+          </span>
+        </div>
+      </div>
+
+      {/* Post Title */}
+      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight">
+        {post.title}
+      </p>
+
+      {/* Bottom row: Type Icon & Hashtags count */}
+      <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-700/60 text-[10px] text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-1">
+          {getPostTypeIcon(post.postType)}
+          <span className="truncate max-w-[80px]">{post.postType?.split(' ')[0]}</span>
+        </div>
+        {post.hashtags && post.hashtags.length > 0 && (
+          <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500">
+            #{post.hashtags.length}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// Self-contained Day Cell component to isolate drag state and avoid parent re-renders
+const CalendarDayCell = memo(({ 
+  cell, 
+  posts, 
+  isToday, 
+  onSelectPost, 
+  onAddPostAtDate, 
+  onDropPost, 
+  onRegeneratePost, 
+  regeneratingId 
+}) => {
+  const [isTargeted, setIsTargeted] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    dragCounter.current += 1;
+    if (dragCounter.current === 1) {
+      setIsTargeted(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setIsTargeted(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsTargeted(false);
+    const postId = e.dataTransfer.getData('text/plain');
+    if (postId) {
+      onDropPost(postId, cell.dateStr);
+    }
+  };
+
+  return (
+    <div
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`bg-white dark:bg-slate-900 min-h-[148px] p-2 flex flex-col justify-between group relative transition-colors duration-100 ${
+        isTargeted
+          ? 'bg-indigo-50/90 dark:bg-indigo-950/80 ring-2 ring-indigo-500 ring-inset'
+          : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
+      }`}
+    >
+      {/* Day Cell Header */}
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1">
+          <span
+            className={`inline-flex items-center justify-center text-xs font-bold rounded-lg w-6 h-6 ${
+              isToday
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100'
+            }`}
+          >
+            {cell.dayNumber}
+          </span>
+          {posts.length > 0 && (
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+              ({posts.length})
+            </span>
+          )}
+        </div>
+
+        {/* Quick Add Post on Date button */}
+        <button
+          type="button"
+          onClick={() => onAddPostAtDate && onAddPostAtDate(cell.dateStr)}
+          title={`Add post on ${cell.dateStr}`}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-opacity cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Day Posts List */}
+      <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto max-h-[140px] pr-0.5">
+        {posts.map((post) => (
+          <PostCard
+            key={post._id}
+            post={post}
+            onSelectPost={onSelectPost}
+            onRegenerate={onRegeneratePost}
+            isRegenerating={regeneratingId === post._id}
+          />
+        ))}
+      </div>
+    </div>
+  );
+});
+
+const CalendarGrid = ({ year, month, onSelectPost, onAddPostAtDate }) => {
+  const { filteredPosts, reschedulePost, regeneratePost } = useCalendar();
+  const [regeneratingId, setRegeneratingId] = useState(null);
 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  const targetMonth = parseInt(month, 10);
-  const targetYear = parseInt(year, 10);
-
   // Days calculations
-  const firstDayIndex = new Date(targetYear, targetMonth - 1, 1).getDay();
-  const totalDaysInMonth = new Date(targetYear, targetMonth, 0).getDate();
-
-  // Helper to format Date as YYYY-MM-DD cleanly regardless of timezone
-  const getYYYYMMDD = (d) => {
-    if (!d) return '';
-    if (typeof d === 'string') {
-      return d.split('T')[0];
-    }
-    const yearStr = d.getFullYear();
-    const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-    const dayStr = String(d.getDate()).padStart(2, '0');
-    return `${yearStr}-${monthStr}-${dayStr}`;
-  };
-
-  // Helper to get day number from Date string safely
-  const getPostDateParts = (d) => {
-    if (!d) return null;
-    const str = typeof d === 'string' ? d.split('T')[0] : getYYYYMMDD(d);
-    const parts = str.split('-');
-    if (parts.length === 3) {
-      return {
-        year: parseInt(parts[0], 10),
-        month: parseInt(parts[1], 10),
-        day: parseInt(parts[2], 10),
-      };
-    }
-    const dateObj = new Date(d);
-    return {
-      year: dateObj.getFullYear(),
-      month: dateObj.getMonth() + 1,
-      day: dateObj.getDate(),
-    };
-  };
+  const firstDayIndex = new Date(year, month - 1, 1).getDay();
+  const totalDaysInMonth = new Date(year, month, 0).getDate();
 
   // Create grid cells array
   const gridCells = [];
   for (let i = 0; i < firstDayIndex; i++) {
     gridCells.push({ isPadding: true, key: `pad-start-${i}` });
   }
-
   for (let d = 1; d <= totalDaysInMonth; d++) {
-    const monthStr = String(targetMonth).padStart(2, '0');
-    const dayStr = String(d).padStart(2, '0');
-    const dateStr = `${targetYear}-${monthStr}-${dayStr}`;
-
+    const cellDate = new Date(year, month - 1, d);
+    const dateStr = cellDate.toISOString().split('T')[0];
     gridCells.push({
       isPadding: false,
       dayNumber: d,
-      dateStr: dateStr,
+      dateObj: cellDate,
+      dateStr,
       key: `day-${d}`,
     });
   }
 
-  // Filter posts
-  const filteredPosts = posts.filter((post) => {
-    if (!post.date) return false;
-    const parts = getPostDateParts(post.date);
-    if (!parts) return false;
-
-    if (parts.year !== targetYear || parts.month !== targetMonth) {
-      return false;
-    }
-
-    if (platformFilter !== 'All') {
-      const p = (post.platform || '').toLowerCase();
-      const filter = platformFilter.toLowerCase();
-      if (filter === 'x' || filter === 'x/twitter') {
-        if (!p.includes('x') && !p.includes('twitter')) return false;
-      } else if (!p.includes(filter)) {
-        return false;
-      }
-    }
-
-    if (statusFilter !== 'All' && post.status !== statusFilter) return false;
-
-    return true;
-  });
-
-  // Map posts by day number
-  const postsByDay = {};
+  // Group filtered posts by dateStr
+  const postsByDateStr = {};
   filteredPosts.forEach((post) => {
-    const parts = getPostDateParts(post.date);
-    if (parts && parts.day) {
-      if (!postsByDay[parts.day]) postsByDay[parts.day] = [];
-      postsByDay[parts.day].push(post);
-    }
+    if (!post.date) return;
+    const cleanDate = post.date.split('T')[0];
+    if (!postsByDateStr[cleanDate]) postsByDateStr[cleanDate] = [];
+    postsByDateStr[cleanDate].push(post);
   });
 
-  // Drag & drop reschedule handlers
-  const handleDragStart = (e, post) => {
-    e.dataTransfer.setData('text/plain', JSON.stringify({ postId: post._id, idea: post.idea || post.title }));
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const handleQuickRegenerate = async (postId) => {
+    setRegeneratingId(postId);
+    await regeneratePost(postId, 'Make it fresh and high impact');
+    setRegeneratingId(null);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e, targetDateStr) => {
-    e.preventDefault();
-    const dataStr = e.dataTransfer.getData('text/plain');
-    if (!dataStr) return;
-
-    try {
-      const { postId } = JSON.parse(dataStr);
-      const res = await postAPI.reschedulePost(postId, targetDateStr);
-      showToast('Post rescheduled!', 'success');
-      if (onPostRescheduled) onPostRescheduled(res.data.post);
-    } catch (err) {
-      showToast('Failed to reschedule post', 'error');
-    }
-  };
-
-  const isToday = (dayNum) => {
-    const today = new Date();
-    return (
-      today.getDate() === dayNum &&
-      today.getMonth() + 1 === targetMonth &&
-      today.getFullYear() === targetYear
-    );
+  const handleDropPost = (postId, targetDateStr) => {
+    reschedulePost(postId, targetDateStr);
   };
 
   return (
-    <div style={{ width: '100%' }}>
-      {/* Calendar Controls & Filters */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          marginBottom: '1rem',
-          background: 'rgba(15, 23, 42, 0.75)',
-          backdropFilter: 'blur(16px)',
-          padding: '0.85rem 1.25rem',
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-        }}
-      >
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.6rem' }}>
-          <Filter size={18} color="#6366f1" />
-          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>Filters:</span>
-
-          {/* Platform Filter */}
-          <select
-            className="form-select"
-            style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}
-            value={platformFilter}
-            onChange={(e) => setPlatformFilter(e.target.value)}
-          >
-            <option value="All">All Platforms</option>
-            <option value="Instagram">Instagram</option>
-            <option value="LinkedIn">LinkedIn</option>
-            <option value="X">X (Twitter)</option>
-            <option value="TikTok">TikTok</option>
-            <option value="Facebook">Facebook</option>
-          </select>
-
-          {/* Status Filter */}
-          <select
-            className="form-select"
-            style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="All">All Statuses</option>
-            <option value="draft">Drafts</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="published">Published</option>
-          </select>
-        </div>
-
-        <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>
-          Showing <span style={{ color: '#ec4899', fontWeight: 700 }}>{filteredPosts.length}</span> posts in grid
-        </div>
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden select-none transition-colors">
+      {/* Week Header */}
+      <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/60 text-center text-xs font-bold text-slate-500 dark:text-slate-400 py-3">
+        {daysOfWeek.map((day, idx) => (
+          <div key={day} className={idx === 0 || idx === 6 ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}>
+            {day}
+          </div>
+        ))}
       </div>
 
-      {/* Overflow Scroll Container for Responsive Grid */}
-      <div style={{ overflowX: 'auto', paddingBottom: '0.5rem' }}>
-        <div className="calendar-grid" style={{ minWidth: '750px', marginTop: 0 }}>
-          {/* Grid Headers */}
-          {daysOfWeek.map((day) => (
-            <div key={day} className="calendar-header-day">
-              {day}
-            </div>
-          ))}
-
-          {/* Grid Day Cells */}
-          {gridCells.map((cell) => {
-            if (cell.isPadding) {
-              return (
-                <div
-                  key={cell.key}
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.25)',
-                    borderRadius: '12px',
-                    minHeight: '125px',
-                    border: '1px solid rgba(255, 255, 255, 0.03)',
-                  }}
-                />
-              );
-            }
-
-            const dayPosts = postsByDay[cell.dayNumber] || [];
-            const currentIsToday = isToday(cell.dayNumber);
-
+      {/* Calendar Grid Cells */}
+      <div className="grid grid-cols-7 auto-rows-fr bg-slate-100/60 dark:bg-slate-800/60 gap-[1px]">
+        {gridCells.map((cell) => {
+          if (cell.isPadding) {
             return (
               <div
                 key={cell.key}
-                className="calendar-day-cell"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, cell.dateStr)}
-              >
-                <div className={`calendar-day-number ${currentIsToday ? 'today' : ''}`}>
-                  <span>{cell.dayNumber}</span>
-                  <button
-                    onClick={() => onAddPostAtDate && onAddPostAtDate(cell.dateStr)}
-                    title="Add Post on this date"
-                    style={{
-                      background: 'none',
-                      color: '#64748b',
-                      padding: '0.1rem',
-                      borderRadius: '4px',
-                      display: 'flex',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#6366f1')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                {/* Day Posts List */}
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.4rem',
-                    maxHeight: '150px',
-                    overflowY: 'auto',
-                    paddingRight: '0.1rem',
-                  }}
-                >
-                  {dayPosts.map((post) => {
-                    const displayPlatform = post.platform || 'Instagram';
-                    const cleanPlatformClass = displayPlatform.replace(/[^a-zA-Z]/g, '');
-
-                    return (
-                      <div
-                        key={post._id}
-                        className="post-tile"
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, post)}
-                        onClick={() => onSelectPost(post)}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                          <span className={`platform-badge platform-${cleanPlatformClass}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
-                            {displayPlatform}
-                          </span>
-                          <span className={`status-badge status-${post.status}`} style={{ fontSize: '0.58rem', padding: '0.05rem 0.3rem' }}>
-                            {post.status}
-                          </span>
-                        </div>
-                        <div className="post-tile-title">{post.idea || post.title}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.68rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                          <Clock size={10} />
-                          <span>{post.timeSlot || '09:00 AM'}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                className="bg-slate-50/40 dark:bg-slate-900/40 min-h-[148px] p-2 text-slate-300 dark:text-slate-700"
+              />
             );
-          })}
-        </div>
+          }
+
+          const cellPosts = postsByDateStr[cell.dateStr] || [];
+          const isToday = cell.dateStr === todayStr;
+
+          return (
+            <CalendarDayCell
+              key={cell.key}
+              cell={cell}
+              posts={cellPosts}
+              isToday={isToday}
+              onSelectPost={onSelectPost}
+              onAddPostAtDate={onAddPostAtDate}
+              onDropPost={handleDropPost}
+              onRegeneratePost={handleQuickRegenerate}
+              regeneratingId={regeneratingId}
+            />
+          );
+        })}
       </div>
     </div>
   );

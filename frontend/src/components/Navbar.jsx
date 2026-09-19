@@ -1,199 +1,156 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Calendar, User, LogOut, ChevronDown, PlusCircle, Building2 } from 'lucide-react';
+import { 
+  Sparkles, 
+  Building2, 
+  ChevronDown, 
+  PlusCircle, 
+  LogOut, 
+  Check, 
+  Layers
+} from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
-const Navbar = ({ onOpenAiGenerator, onNavigate }) => {
+const Navbar = ({ onOpenAiGenerator }) => {
   const { user, logout, brands, activeBrand, selectActiveBrand } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
-    <header
-      style={{
-        background: 'rgba(15, 23, 42, 0.85)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        padding: '0.9rem 2rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-      }}
-    >
-      {/* Brand Logo & Name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
-        <div
-          onClick={() => onNavigate && onNavigate('dashboard')}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
-        >
-          <div
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #6366f1, #ec4899)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 16px rgba(99, 102, 241, 0.5)',
-            }}
-          >
-            <Sparkles size={22} color="#fff" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.5px' }}>
-              PostWise<span style={{ color: '#ec4899' }}>.AI</span>
-            </h1>
-            <p style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>Social Content Generator</p>
-          </div>
-        </div>
-
-        {/* Brand Selector Dropdown */}
+    <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-6 py-3 sticky top-0 z-30 flex items-center justify-between shadow-subtle transition-colors">
+      {/* Left Area: Active Brand Selector & Breadcrumbs */}
+      <div className="flex items-center gap-4">
         {user && (
-          <div style={{ position: 'relative' }}>
+          <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '0.5rem 0.9rem', gap: '0.5rem' }}
+              className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-200 text-sm font-semibold shadow-xs cursor-pointer"
             >
-              <Building2 size={16} color="#6366f1" />
-              <span style={{ fontWeight: 600 }}>{activeBrand ? activeBrand.name : 'Select Brand Profile'}</span>
-              <ChevronDown size={14} color="#94a3b8" />
+              <div className="w-5 h-5 rounded-md bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <Building2 className="w-3.5 h-3.5" />
+              </div>
+              <span className="max-w-[140px] md:max-w-[200px] truncate font-bold">
+                {activeBrand ? activeBrand.name : 'Select Brand Profile'}
+              </span>
+              <ChevronDown className="w-4 h-4 text-slate-500 ml-1" />
             </button>
 
             {dropdownOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '110%',
-                  left: 0,
-                  width: '240px',
-                  background: '#0f172a',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '12px',
-                  padding: '0.5rem',
-                  boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-                  zIndex: 200,
-                }}
-              >
-                <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Your Brands
+              <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-popover z-50 animate-scale-in">
+                <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Select Brand Workspace
                 </div>
-                {brands.length === 0 ? (
-                  <div style={{ padding: '0.6rem', fontSize: '0.82rem', color: '#94a3b8' }}>
-                    No brands created yet
-                  </div>
-                ) : (
-                  brands.map((b) => (
-                    <div
-                      key={b._id}
-                      onClick={() => {
-                        selectActiveBrand(b);
-                        setDropdownOpen(false);
-                      }}
-                      style={{
-                        padding: '0.5rem 0.75rem',
-                        borderRadius: '8px',
-                        fontSize: '0.85rem',
-                        fontWeight: activeBrand && activeBrand._id === b._id ? 700 : 500,
-                        color: activeBrand && activeBrand._id === b._id ? '#6366f1' : '#f8fafc',
-                        background: activeBrand && activeBrand._id === b._id ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <span>{b.name}</span>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{b.industry}</span>
-                    </div>
-                  ))
-                )}
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '0.4rem', paddingTop: '0.4rem' }}>
+                <div className="flex flex-col gap-1 max-h-60 overflow-y-auto my-1">
+                  {brands && brands.length > 0 ? (
+                    brands.map((b) => {
+                      const isSelected = activeBrand && activeBrand._id === b._id;
+                      return (
+                        <div
+                          key={b._id}
+                          onClick={() => {
+                            selectActiveBrand(b);
+                            setDropdownOpen(false);
+                          }}
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-sm transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{ backgroundColor: b.color || '#4f46e5' }}
+                            />
+                            <div className="truncate">
+                              <p className="font-semibold text-xs leading-tight">{b.name}</p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{b.niche || b.industry}</p>
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-slate-400">No brands configured</div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1">
                   <button
                     onClick={() => {
                       setDropdownOpen(false);
-                      onNavigate('brands');
+                      navigate('/brand');
                     }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '0.5rem 0.75rem',
-                      background: 'none',
-                      color: '#ec4899',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 rounded-xl transition-colors cursor-pointer"
                   >
-                    <PlusCircle size={14} /> + Create New Brand Profile
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    Configure Brand Profiles
                   </button>
                 </div>
               </div>
             )}
           </div>
         )}
+
+        <div className="hidden md:flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+          <span>•</span>
+          <span className="flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5" />
+            3 Platforms Active: IG, LinkedIn, X
+          </span>
+        </div>
       </div>
 
-      {/* Right Navigation Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        {user ? (
-          <>
-            <button onClick={onOpenAiGenerator} className="btn btn-gradient">
-              <Sparkles size={16} />
-              <span>Generate AI Calendar</span>
-            </button>
+      {/* Right Controls */}
+      <div className="flex items-center gap-3">
+        {/* Main CTA: Generate AI Calendar */}
+        <button
+          onClick={onOpenAiGenerator || (() => navigate('/generate'))}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-sm shadow-indigo-500/25 transition-all transform active:scale-95 cursor-pointer"
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>Generate AI Calendar</span>
+        </button>
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.6rem',
-                padding: '0.4rem 0.8rem',
-                background: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: '9999px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #14b8a6, #6366f1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: '0.8rem',
-                  color: '#fff',
-                }}
-              >
+        {/* Shadcn UI Dark/Light Theme Toggle */}
+        <ThemeToggle />
+
+        {/* User profile dropdown pill */}
+        {user && (
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800 transition-colors">
+              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-xs">
                 {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>{user.name}</span>
-              <button
-                onClick={logout}
-                title="Logout"
-                style={{
-                  background: 'none',
-                  color: '#94a3b8',
-                  padding: '0.2rem',
-                  marginLeft: '0.3rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
-              >
-                <LogOut size={16} />
-              </button>
+              <div className="hidden lg:block text-left">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">{user.name}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-none mt-0.5">{user.company || 'Creator'}</p>
+              </div>
             </div>
-          </>
-        ) : null}
+
+            <button
+              onClick={logout}
+              title="Logout"
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
