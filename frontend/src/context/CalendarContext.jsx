@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { calendarAPI, postAPI } from '../services/api';
-import { INITIAL_CALENDAR, INITIAL_POSTS } from '../services/mockData';
 import { exportToCSV, exportToJSON, exportToPDF } from '../services/exportService';
 import { useAuth } from './AuthContext';
 
@@ -19,7 +18,7 @@ export const CalendarProvider = ({ children }) => {
   const [platformFilter, setPlatformFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('month'); // 'month' | 'agenda'
+  const [viewMode, setViewMode] = useState('month');
 
   // Selected post for modal editing
   const [selectedPost, setSelectedPost] = useState(null);
@@ -30,19 +29,22 @@ export const CalendarProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await calendarAPI.getCalendars();
-      const list = res?.data?.calendars || res?.calendars || res || [INITIAL_CALENDAR];
+      const list = res?.data?.calendars || res?.calendars || [];
       setCalendars(list);
 
       if (list.length > 0) {
         const initial = list[0];
         setActiveCalendar(initial);
         await loadCalendarPosts(initial._id);
+      } else {
+        setActiveCalendar(null);
+        setPosts([]);
       }
     } catch (err) {
-      console.warn('Fallback to initial mock calendar', err);
-      setCalendars([INITIAL_CALENDAR]);
-      setActiveCalendar(INITIAL_CALENDAR);
-      setPosts(INITIAL_POSTS);
+      console.warn('Failed to load calendars from API:', err);
+      setCalendars([]);
+      setActiveCalendar(null);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
@@ -51,11 +53,11 @@ export const CalendarProvider = ({ children }) => {
   const loadCalendarPosts = async (calendarId) => {
     try {
       const res = await calendarAPI.getCalendarById(calendarId);
-      const postList = res?.data?.posts || res?.posts || INITIAL_POSTS;
+      const postList = res?.data?.posts || res?.posts || [];
       setPosts(postList);
     } catch (err) {
-      console.warn('Fallback to mock posts for calendar', err);
-      setPosts(INITIAL_POSTS);
+      console.warn('Failed to load calendar posts from API:', err);
+      setPosts([]);
     }
   };
 
@@ -66,7 +68,7 @@ export const CalendarProvider = ({ children }) => {
   const selectCalendar = async (cal) => {
     setActiveCalendar(cal);
     await loadCalendarPosts(cal._id);
-    showToast(`Loaded calendar: ${cal.topic || cal.month}`, 'info');
+    showToast(`Loaded calendar: ${cal.title || cal.topic || cal.month}`, 'info');
   };
 
   // Drag and drop reschedule
@@ -84,7 +86,7 @@ export const CalendarProvider = ({ children }) => {
       );
 
       await postAPI.reschedulePost(postId, newDate, targetPost.timeSlot);
-      showToast(`Rescheduled "${targetPost.title.slice(0, 24)}..." to ${newDate}`, 'success');
+      showToast(`Rescheduled post to ${newDate}`, 'success');
     } catch (err) {
       console.error('Failed to reschedule post:', err);
       showToast('Error rescheduling post', 'error');
@@ -97,12 +99,13 @@ export const CalendarProvider = ({ children }) => {
       const targetPost = posts.find((p) => p._id === postId);
       if (!targetPost) return;
 
-      const updated = await postAPI.regeneratePost(postId, customInstruction);
+      const res = await postAPI.regeneratePost(postId, customInstruction);
+      const updated = res?.data?.post || res?.post || res;
       setPosts((prev) => prev.map((p) => (p._id === postId ? updated : p)));
       if (selectedPost && selectedPost._id === postId) {
         setSelectedPost(updated);
       }
-      showToast(`Regenerated post for ${targetPost.platform}!`, 'success');
+      showToast(`Regenerated post!`, 'success');
       return updated;
     } catch (err) {
       console.error('Regeneration error:', err);
@@ -113,10 +116,11 @@ export const CalendarProvider = ({ children }) => {
   // Update post
   const updatePost = async (postId, data) => {
     try {
-      const updated = await postAPI.updatePost(postId, data);
-      setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, ...data } : p)));
+      const res = await postAPI.updatePost(postId, data);
+      const updated = res?.data?.post || res?.post || data;
+      setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, ...updated } : p)));
       if (selectedPost && selectedPost._id === postId) {
-        setSelectedPost((prev) => ({ ...prev, ...data }));
+        setSelectedPost((prev) => ({ ...prev, ...updated }));
       }
       showToast('Post updated successfully', 'success');
       return updated;
@@ -147,10 +151,11 @@ export const CalendarProvider = ({ children }) => {
     try {
       const payload = {
         ...newPostData,
-        calendar: activeCalendar?._id || 'cal_demo_1',
-        brand: activeBrand?._id || 'brand_ecoglow_1',
+        calendarId: activeCalendar?._id,
+        brandId: activeBrand?._id,
       };
-      const created = await postAPI.createPost(payload);
+      const res = await postAPI.createPost(payload);
+      const created = res?.data?.post || res?.post || res;
       setPosts((prev) => [created, ...prev]);
       showToast('New post added to calendar!', 'success');
       return created;
@@ -169,13 +174,13 @@ export const CalendarProvider = ({ children }) => {
         brandId: formData.brandId || activeBrand?._id,
       });
 
-      const newCal = res?.calendar || res?.data?.calendar;
-      const newPosts = res?.posts || res?.data?.posts || [];
+      const newCal = res?.data?.calendar || res?.calendar;
+      const newPosts = res?.data?.posts || res?.posts || [];
 
       setCalendars((prev) => [newCal, ...prev]);
       setActiveCalendar(newCal);
       setPosts(newPosts);
-      showToast(`Generated 30-day calendar: ${newCal.topic}!`, 'success');
+      showToast(`Generated 30-day calendar!`, 'success');
       return { calendar: newCal, posts: newPosts };
     } catch (err) {
       console.error('Generation error:', err);
@@ -203,10 +208,10 @@ export const CalendarProvider = ({ children }) => {
       showToast('No posts to export!', 'error');
       return;
     }
-    const calInfo = activeCalendar || { topic: 'Social_Media_Content_Calendar' };
+    const calInfo = activeCalendar || { title: 'Social_Media_Content_Calendar' };
 
     if (format === 'csv') {
-      exportToCSV(posts, calInfo.topic);
+      exportToCSV(posts, calInfo.title || 'calendar');
       showToast('Downloaded calendar as CSV', 'success');
     } else if (format === 'json') {
       exportToJSON(posts, calInfo);
@@ -227,12 +232,12 @@ export const CalendarProvider = ({ children }) => {
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchTitle = (post.title || '').toLowerCase().includes(q);
+      const matchIdea = (post.idea || post.title || '').toLowerCase().includes(q);
       const matchCaption = (post.caption || '').toLowerCase().includes(q);
       const matchTags = Array.isArray(post.hashtags)
         ? post.hashtags.some((t) => t.toLowerCase().includes(q))
         : false;
-      if (!matchTitle && !matchCaption && !matchTags) return false;
+      if (!matchIdea && !matchCaption && !matchTags) return false;
     }
     return true;
   });

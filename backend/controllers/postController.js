@@ -6,10 +6,11 @@ const { getDBStatus } = require('../config/db');
 exports.createPost = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { calendarId, brandId, date, timeSlot, platform, title, caption, hashtags, postType, status } = req.body;
+    const { calendarId, brandId, date, timeSlot, platform, title, idea, caption, hashtags, postType, status } = req.body;
 
-    if (!calendarId || !brandId || !date || !title || !caption || !platform) {
-      return res.status(400).json({ message: 'calendarId, brandId, date, title, caption, and platform are required' });
+    const postIdea = idea || title;
+    if (!calendarId || !brandId || !date || !postIdea || !caption || !platform) {
+      return res.status(400).json({ message: 'calendarId, brandId, date, title/idea, caption, and platform are required' });
     }
 
     const { useMockStore } = getDBStatus();
@@ -23,12 +24,13 @@ exports.createPost = async (req, res) => {
         brand: brandId,
         date: new Date(date),
         timeSlot: timeSlot || '09:00 AM',
-        platform,
-        title,
+        platform: (platform === 'X/Twitter' || platform === 'Twitter') ? 'X' : platform,
+        idea: postIdea,
+        title: postIdea,
         caption,
         hashtags: Array.isArray(hashtags) ? hashtags : (hashtags ? hashtags.split(',').map(h => h.trim()) : []),
-        postType: postType || 'Single Image',
-        imagePrompt: `Visual suggestion for ${title}`,
+        postType: postType || 'Educational',
+        imagePrompt: `Visual suggestion for ${postIdea}`,
         engagementTip: 'Share to story for higher reach',
         status: status || 'draft',
         createdAt: new Date(),
@@ -47,11 +49,11 @@ exports.createPost = async (req, res) => {
       brand: brandId,
       date: new Date(date),
       timeSlot: timeSlot || '09:00 AM',
-      platform,
-      title,
+      platform: (platform === 'X/Twitter' || platform === 'Twitter') ? 'X' : platform,
+      idea: postIdea,
       caption,
       hashtags: formattedHashtags,
-      postType: postType || 'Single Image',
+      postType: postType || 'Educational',
       status: status || 'draft',
     });
 
@@ -65,9 +67,10 @@ exports.updatePost = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { title, caption, hashtags, platform, timeSlot, status, postType, imagePrompt, engagementTip, date } = req.body;
+    const { title, idea, caption, hashtags, platform, timeSlot, status, postType, imagePrompt, engagementTip, date } = req.body;
 
     const { useMockStore } = getDBStatus();
+    const updatedIdea = idea || title;
 
     if (useMockStore) {
       const { mockPosts } = require('./calendarController');
@@ -76,10 +79,11 @@ exports.updatePost = async (req, res) => {
 
       mockPosts[index] = {
         ...mockPosts[index],
-        title: title || mockPosts[index].title,
+        idea: updatedIdea || mockPosts[index].idea,
+        title: updatedIdea || mockPosts[index].title,
         caption: caption || mockPosts[index].caption,
         hashtags: Array.isArray(hashtags) ? hashtags : (typeof hashtags === 'string' ? hashtags.split(',').map(h => h.trim()) : mockPosts[index].hashtags),
-        platform: platform || mockPosts[index].platform,
+        platform: platform ? ((platform === 'X/Twitter' || platform === 'Twitter') ? 'X' : platform) : mockPosts[index].platform,
         timeSlot: timeSlot || mockPosts[index].timeSlot,
         status: status || mockPosts[index].status,
         postType: postType || mockPosts[index].postType,
@@ -92,9 +96,9 @@ exports.updatePost = async (req, res) => {
     }
 
     const updateFields = {};
-    if (title !== undefined) updateFields.title = title;
+    if (updatedIdea !== undefined) updateFields.idea = updatedIdea;
     if (caption !== undefined) updateFields.caption = caption;
-    if (platform !== undefined) updateFields.platform = platform;
+    if (platform !== undefined) updateFields.platform = (platform === 'X/Twitter' || platform === 'Twitter') ? 'X' : platform;
     if (timeSlot !== undefined) updateFields.timeSlot = timeSlot;
     if (status !== undefined) updateFields.status = status;
     if (postType !== undefined) updateFields.postType = postType;
@@ -146,6 +150,8 @@ exports.regeneratePost = async (req, res) => {
       mockPosts[index] = {
         ...mockPosts[index],
         ...regeneratedData,
+        idea: regeneratedData.idea || regeneratedData.title || mockPosts[index].idea,
+        title: regeneratedData.idea || regeneratedData.title || mockPosts[index].title,
         updatedAt: new Date(),
       };
 
@@ -162,11 +168,11 @@ exports.regeneratePost = async (req, res) => {
 
     const regeneratedData = await regenerateSinglePost({ post, brand, customInstruction });
 
-    post.title = regeneratedData.title;
-    post.caption = regeneratedData.caption;
-    post.hashtags = regeneratedData.hashtags;
-    post.imagePrompt = regeneratedData.imagePrompt;
-    post.engagementTip = regeneratedData.engagementTip;
+    post.idea = regeneratedData.idea || regeneratedData.title || post.idea;
+    post.caption = regeneratedData.caption || post.caption;
+    post.hashtags = regeneratedData.hashtags || post.hashtags;
+    if (regeneratedData.imagePrompt) post.imagePrompt = regeneratedData.imagePrompt;
+    if (regeneratedData.engagementTip) post.engagementTip = regeneratedData.engagementTip;
     await post.save();
 
     return res.json({ message: 'Post content regenerated successfully', post });
