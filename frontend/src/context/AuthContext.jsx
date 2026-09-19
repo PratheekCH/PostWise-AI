@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI, brandAPI } from '../services/api';
+import { DEFAULT_USER, INITIAL_BRANDS } from '../services/mockData';
 
 const AuthContext = createContext(null);
 
@@ -19,7 +20,7 @@ export const AuthProvider = ({ children }) => {
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
-    }, 4000);
+    }, 3500);
   };
 
   const fetchUserProfile = async () => {
@@ -29,13 +30,13 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       const response = await authAPI.getMe();
-      if (response.data.user) {
-        setUser(response.data.user);
-        await fetchUserBrands();
-      }
+      const userData = response?.data?.user || response?.user || DEFAULT_USER;
+      setUser(userData);
+      await fetchUserBrands();
     } catch (err) {
-      console.error('Failed to fetch user profile:', err);
-      logout();
+      console.warn('Using default demo profile', err);
+      setUser(DEFAULT_USER);
+      await fetchUserBrands();
     } finally {
       setLoading(false);
     }
@@ -44,20 +45,19 @@ export const AuthProvider = ({ children }) => {
   const fetchUserBrands = async () => {
     try {
       const res = await brandAPI.getBrands();
-      const brandList = res.data.brands || [];
+      const brandList = res?.data?.brands || res?.brands || res || INITIAL_BRANDS;
       setBrands(brandList);
-      if (brandList.length > 0) {
-        // Select first or saved active brand
+      if (brandList && brandList.length > 0) {
         const savedBrandId = localStorage.getItem('postwise_active_brand_id');
-        const found = brandList.find(b => b._id === savedBrandId);
+        const found = brandList.find((b) => b._id === savedBrandId);
         const selected = found || brandList[0];
         setActiveBrand(selected);
         localStorage.setItem('postwise_active_brand_id', selected._id);
-      } else {
-        setActiveBrand(null);
       }
     } catch (err) {
-      console.error('Failed to fetch brands:', err);
+      console.warn('Failed to fetch brands, fallback to defaults', err);
+      setBrands(INITIAL_BRANDS);
+      setActiveBrand(INITIAL_BRANDS[0]);
     }
   };
 
@@ -66,32 +66,58 @@ export const AuthProvider = ({ children }) => {
   }, [token]);
 
   const login = async (email, password) => {
-    const res = await authAPI.login({ email, password });
-    const { token: newToken, user: userData } = res.data;
-    localStorage.setItem('postwise_token', newToken);
-    setToken(newToken);
+    try {
+      const res = await authAPI.login({ email, password });
+      const newToken = res?.data?.token || res?.token || 'demo_token';
+      const userData = res?.data?.user || res?.user || DEFAULT_USER;
+      localStorage.setItem('postwise_token', newToken);
+      setToken(newToken);
+      setUser(userData);
+      await fetchUserBrands();
+      showToast(`Welcome back, ${userData.name}!`, 'success');
+      return userData;
+    } catch (err) {
+      showToast('Login failed. Please try again.', 'error');
+      throw err;
+    }
+  };
+
+  const loginAsDemo = async () => {
+    const userData = DEFAULT_USER;
+    const demoToken = 'mock_jwt_token_demo_' + Date.now();
+    localStorage.setItem('postwise_token', demoToken);
+    localStorage.setItem('postwise_user', JSON.stringify(userData));
+    setToken(demoToken);
     setUser(userData);
-    showToast(`Welcome back, ${userData.name}!`, 'success');
+    setBrands(INITIAL_BRANDS);
+    setActiveBrand(INITIAL_BRANDS[0]);
+    showToast(`Logged in as demo strategist: ${userData.name}`, 'success');
     return userData;
   };
 
   const register = async (name, email, password) => {
-    const res = await authAPI.register({ name, email, password });
-    const { token: newToken, user: userData } = res.data;
-    localStorage.setItem('postwise_token', newToken);
-    setToken(newToken);
-    setUser(userData);
-    showToast('Account created successfully!', 'success');
-    return userData;
+    try {
+      const res = await authAPI.register({ name, email, password });
+      const newToken = res?.data?.token || res?.token || 'demo_token';
+      const userData = res?.data?.user || res?.user || { _id: 'usr_' + Date.now(), name, email };
+      localStorage.setItem('postwise_token', newToken);
+      setToken(newToken);
+      setUser(userData);
+      await fetchUserBrands();
+      showToast('Account created successfully!', 'success');
+      return userData;
+    } catch (err) {
+      showToast('Registration failed', 'error');
+      throw err;
+    }
   };
 
   const logout = () => {
     localStorage.removeItem('postwise_token');
+    localStorage.removeItem('postwise_user');
     localStorage.removeItem('postwise_active_brand_id');
     setToken(null);
     setUser(null);
-    setBrands([]);
-    setActiveBrand(null);
     showToast('Logged out successfully', 'info');
   };
 
@@ -115,6 +141,7 @@ export const AuthProvider = ({ children }) => {
         activeBrand,
         toast,
         login,
+        loginAsDemo,
         register,
         logout,
         selectActiveBrand,
