@@ -7,6 +7,43 @@ const { getDBStatus } = require('../config/db');
 const mockCalendars = [];
 const mockPosts = [];
 
+function parseMonthAndYear(month, year, start) {
+  let targetMonth = start.getMonth() + 1;
+  let targetYear = start.getFullYear();
+
+  if (month !== undefined && month !== null) {
+    if (typeof month === 'number' && !isNaN(month)) {
+      targetMonth = Math.max(1, Math.min(12, Math.floor(month)));
+    } else if (typeof month === 'string') {
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+      const lower = month.toLowerCase().trim();
+      const foundIdx = monthNames.findIndex(m => lower.includes(m));
+      if (foundIdx !== -1) {
+        targetMonth = foundIdx + 1;
+      } else {
+        const parsedM = parseInt(month, 10);
+        if (!isNaN(parsedM) && parsedM >= 1 && parsedM <= 12) {
+          targetMonth = parsedM;
+        }
+      }
+
+      const yearMatch = month.match(/\b(20\d\d)\b/);
+      if (yearMatch && !year) {
+        targetYear = parseInt(yearMatch[1], 10);
+      }
+    }
+  }
+
+  if (year !== undefined && year !== null) {
+    const parsedY = parseInt(year, 10);
+    if (!isNaN(parsedY) && parsedY >= 2000) {
+      targetYear = parsedY;
+    }
+  }
+
+  return { targetMonth, targetYear };
+}
+
 exports.generateCalendar = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -17,8 +54,8 @@ exports.generateCalendar = async (req, res) => {
     }
 
     const start = startDate ? new Date(startDate) : new Date();
-    const targetMonth = month ? parseInt(month, 10) : start.getMonth() + 1;
-    const targetYear = year ? parseInt(year, 10) : start.getFullYear();
+    const validStart = isNaN(start.getTime()) ? new Date() : start;
+    const { targetMonth, targetYear } = parseMonthAndYear(month, year, validStart);
 
     const { useMockStore } = getDBStatus();
 
@@ -47,7 +84,7 @@ exports.generateCalendar = async (req, res) => {
     // Generate ~30 posts
     const generatedPostsData = await generateCalendarPosts({
       brand,
-      startDate: start,
+      startDate: validStart,
       month: targetMonth,
       year: targetYear,
     });
@@ -68,7 +105,7 @@ exports.generateCalendar = async (req, res) => {
         title: calendarTitle,
         month: targetMonth,
         year: targetYear,
-        startDate: start,
+        startDate: validStart,
         topicNiche: topicNiche || brand.industry || '',
         goals: goals || brand.postingGoals || '',
         postsCount: generatedPostsData.length,
@@ -82,13 +119,13 @@ exports.generateCalendar = async (req, res) => {
         user: userId,
         brand: brandId,
         date: p.date,
-        platform: p.platform,
-        postType: p.postType,
-        idea: p.idea,
-        title: p.idea,
-        caption: p.caption,
-        hashtags: p.hashtags,
-        status: p.status,
+        platform: (p.platform === 'X/Twitter' || p.platform === 'Twitter') ? 'X' : (p.platform || 'Instagram'),
+        postType: p.postType || 'Educational',
+        idea: p.idea || p.title || `Day ${idx + 1} Content Idea`,
+        title: p.idea || p.title || `Day ${idx + 1} Content Idea`,
+        caption: p.caption || `Post caption for ${bName}`,
+        hashtags: p.hashtags || [],
+        status: p.status || 'draft',
         createdAt: new Date(),
         updatedAt: new Date(),
       }));
@@ -108,17 +145,20 @@ exports.generateCalendar = async (req, res) => {
       title: calendarTitle,
       month: targetMonth,
       year: targetYear,
-      startDate: start,
+      startDate: validStart,
       topicNiche: topicNiche || brand.industry || '',
       goals: goals || brand.postingGoals || '',
       postsCount: generatedPostsData.length,
     });
 
-    const postsToInsert = generatedPostsData.map(p => ({
+    const postsToInsert = generatedPostsData.map((p, idx) => ({
       ...p,
       calendar: calendar._id,
       user: userId,
       brand: brandId,
+      idea: p.idea || p.title || `Day ${idx + 1} Content Idea`,
+      caption: p.caption || `Post caption for ${bName}`,
+      platform: (p.platform === 'X/Twitter' || p.platform === 'Twitter') ? 'X' : (p.platform || 'Instagram'),
     }));
 
     const createdPosts = await Post.insertMany(postsToInsert);
