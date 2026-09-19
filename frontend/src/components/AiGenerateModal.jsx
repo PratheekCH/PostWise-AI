@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { calendarAPI } from '../services/api';
-import { X, Sparkles, Loader2, Calendar as CalendarIcon, Target, Layers } from 'lucide-react';
+import { X, Sparkles, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 
 const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
   const { brands, activeBrand, showToast } = useAuth();
 
-  const currentDate = new Date();
+  const todayIso = new Date().toISOString().split('T')[0];
+
   const [selectedBrandId, setSelectedBrandId] = useState(activeBrand ? activeBrand._id : (brands[0] ? brands[0]._id : ''));
-  const [month, setMonth] = useState(currentDate.getMonth() + 1);
-  const [year, setYear] = useState(currentDate.getFullYear());
+  const [startDate, setStartDate] = useState(todayIso);
   const [topicNiche, setTopicNiche] = useState('');
-  const [goals, setGoals] = useState('Brand growth, engagement & audience building');
-  const [postFrequency, setPostFrequency] = useState('daily');
+  const [goals, setGoals] = useState('Brand growth, engagement & lead generation');
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -26,13 +25,14 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
 
     setLoading(true);
     try {
+      const selectedDate = new Date(startDate);
       const res = await calendarAPI.generateCalendar({
         brandId: selectedBrandId,
-        month: parseInt(month, 10),
-        year: parseInt(year, 10),
+        startDate: startDate,
+        month: selectedDate.getMonth() + 1,
+        year: selectedDate.getFullYear(),
         topicNiche: topicNiche.trim(),
         goals: goals.trim(),
-        postFrequency,
       });
 
       showToast(`Successfully generated ${res.data.posts.length} posts calendar!`, 'success');
@@ -46,11 +46,6 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
     }
   };
 
-  const monthsList = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -59,9 +54,9 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
                 background: 'linear-gradient(135deg, #ec4899, #6366f1)',
                 display: 'flex',
                 alignItems: 'center',
@@ -72,7 +67,7 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
             </div>
             <div>
               <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>AI Social Calendar Generator</h3>
-              <p style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Generate 30 days of platform-tailored social posts</p>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Generate 30 platform-tailored social posts with OpenAI</p>
             </div>
           </div>
           <button
@@ -98,40 +93,23 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
                 <option value="" disabled>-- Select Brand --</option>
                 {brands.map((b) => (
                   <option key={b._id} value={b._id}>
-                    {b.name} ({b.industry} - {b.tone})
+                    {b.brandName || b.name} ({b.industry} - {b.tone})
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Month & Year */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Month</label>
-                <select
-                  className="form-select"
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
-                >
-                  {monthsList.map((m, idx) => (
-                    <option key={m} value={idx + 1}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Year</label>
-                <select
-                  className="form-select"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                >
-                  <option value={2026}>2026</option>
-                  <option value={2027}>2027</option>
-                </select>
-              </div>
+            {/* Start Date */}
+            <div className="form-group">
+              <label className="form-label">Calendar Start Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+              />
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Generates ~30 daily posts starting from this date</span>
             </div>
 
             {/* Topic / Niche */}
@@ -148,7 +126,7 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
 
             {/* Content Goals */}
             <div className="form-group">
-              <label className="form-label">Content Objectives & Goals</label>
+              <label className="form-label">Posting Goals</label>
               <input
                 type="text"
                 className="form-input"
@@ -156,20 +134,6 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
                 value={goals}
                 onChange={(e) => setGoals(e.target.value)}
               />
-            </div>
-
-            {/* Posting Frequency */}
-            <div className="form-group">
-              <label className="form-label">Posting Frequency</label>
-              <select
-                className="form-select"
-                value={postFrequency}
-                onChange={(e) => setPostFrequency(e.target.value)}
-              >
-                <option value="daily">Daily (30 posts)</option>
-                <option value="alternate">Alternate Days (15 posts)</option>
-                <option value="weekdays">Weekdays Only (~22 posts)</option>
-              </select>
             </div>
           </div>
 
@@ -182,12 +146,12 @@ const AiGenerateModal = ({ isOpen, onClose, onGenerated }) => {
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={18} />
-                  <span>Generating AI Posts...</span>
+                  <span>Generating 30 Posts...</span>
                 </>
               ) : (
                 <>
                   <Sparkles size={18} />
-                  <span>Generate Full Calendar</span>
+                  <span>Generate 30-Day Calendar</span>
                 </>
               )}
             </button>

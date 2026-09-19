@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { brandAPI } from '../services/api';
-import { Building2, Save, Trash2, Plus, Sparkles, Check, Globe, Tag, MessageSquare, Target } from 'lucide-react';
+import { Building2, Save, Trash2, Plus, Check } from 'lucide-react';
 
 const TONE_OPTIONS = ['Professional', 'Witty & Fun', 'Inspirational', 'Educational', 'Bold & Direct', 'Casual'];
-const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'X/Twitter', 'TikTok', 'Facebook', 'YouTube'];
+const PLATFORM_OPTIONS = ['Instagram', 'LinkedIn', 'X', 'TikTok', 'Facebook'];
 
 const BrandProfile = () => {
   const { brands, activeBrand, selectActiveBrand, refreshBrands, showToast } = useAuth();
@@ -13,11 +13,12 @@ const BrandProfile = () => {
   const [isEditingNew, setIsEditingNew] = useState(false);
 
   // Form State
-  const [name, setName] = useState('');
+  const [brandName, setBrandName] = useState('');
   const [industry, setIndustry] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [tone, setTone] = useState('Professional');
-  const [platforms, setPlatforms] = useState(['Instagram', 'LinkedIn', 'X/Twitter']);
+  const [postingGoals, setPostingGoals] = useState('Brand growth, engagement & lead generation');
+  const [platforms, setPlatforms] = useState(['Instagram', 'LinkedIn', 'X']);
   const [keywordsStr, setKeywordsStr] = useState('');
   const [description, setDescription] = useState('');
   const [website, setWebsite] = useState('');
@@ -34,11 +35,12 @@ const BrandProfile = () => {
   const loadBrandToForm = (brand) => {
     setSelectedBrandId(brand._id);
     setIsEditingNew(false);
-    setName(brand.name || '');
+    setBrandName(brand.brandName || brand.name || '');
     setIndustry(brand.industry || '');
     setTargetAudience(brand.targetAudience || '');
     setTone(brand.tone || 'Professional');
-    setPlatforms(brand.platforms || ['Instagram', 'LinkedIn', 'X/Twitter']);
+    setPostingGoals(brand.postingGoals || brand.goals || '');
+    setPlatforms(brand.platforms || ['Instagram', 'LinkedIn', 'X']);
     setKeywordsStr(Array.isArray(brand.keywords) ? brand.keywords.join(', ') : '');
     setDescription(brand.description || '');
     setWebsite(brand.website || '');
@@ -47,11 +49,12 @@ const BrandProfile = () => {
   const handleCreateNewClick = () => {
     setSelectedBrandId(null);
     setIsEditingNew(true);
-    setName('');
+    setBrandName('');
     setIndustry('');
     setTargetAudience('');
     setTone('Professional');
-    setPlatforms(['Instagram', 'LinkedIn', 'X/Twitter']);
+    setPostingGoals('Brand growth & engagement');
+    setPlatforms(['Instagram', 'LinkedIn', 'X']);
     setKeywordsStr('');
     setDescription('');
     setWebsite('');
@@ -71,7 +74,7 @@ const BrandProfile = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!brandName.trim()) {
       showToast('Brand name is required', 'error');
       return;
     }
@@ -80,10 +83,13 @@ const BrandProfile = () => {
     try {
       const keywords = keywordsStr.split(',').map((k) => k.trim()).filter(Boolean);
       const payload = {
-        name: name.trim(),
+        brandName: brandName.trim(),
+        name: brandName.trim(),
         industry: industry.trim(),
         targetAudience: targetAudience.trim(),
         tone,
+        postingGoals: postingGoals.trim(),
+        goals: postingGoals.trim(),
         platforms,
         keywords,
         description: description.trim(),
@@ -111,14 +117,14 @@ const BrandProfile = () => {
 
   const handleDeleteBrand = async () => {
     if (!selectedBrandId) return;
-    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${brandName}"?`)) return;
 
     try {
       await brandAPI.deleteBrand(selectedBrandId);
       showToast('Brand deleted', 'info');
       await refreshBrands();
       setIsEditingNew(true);
-      setName('');
+      setBrandName('');
     } catch (err) {
       showToast('Failed to delete brand', 'error');
     }
@@ -170,7 +176,7 @@ const BrandProfile = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 700, fontSize: '0.95rem', color: isSelected ? '#6366f1' : '#f8fafc' }}>
-                      {b.name}
+                      {b.brandName || b.name}
                     </span>
                     {isActiveContext && (
                       <span className="status-badge status-scheduled" style={{ fontSize: '0.62rem' }}>
@@ -192,7 +198,7 @@ const BrandProfile = () => {
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>
-                {isEditingNew ? 'Create Brand Profile' : `Edit Profile: ${name}`}
+                {isEditingNew ? 'Create Brand Profile' : `Edit Profile: ${brandName}`}
               </h3>
               {selectedBrandId && !isEditingNew && (
                 <button type="button" onClick={handleDeleteBrand} className="btn btn-danger btn-sm">
@@ -204,13 +210,13 @@ const BrandProfile = () => {
             {/* Brand Name & Industry */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div className="form-group">
-                <label className="form-label">Brand / Company Name *</label>
+                <label className="form-label">Brand Name *</label>
                 <input
                   type="text"
                   className="form-input"
                   placeholder="e.g. TechPulse AI"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
                   required
                 />
               </div>
@@ -250,6 +256,18 @@ const BrandProfile = () => {
                   onChange={(e) => setWebsite(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Posting Goals */}
+            <div className="form-group">
+              <label className="form-label">Posting Goals</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Lead generation, brand awareness, community growth"
+                value={postingGoals}
+                onChange={(e) => setPostingGoals(e.target.value)}
+              />
             </div>
 
             {/* Tone of Voice Selector */}
@@ -327,7 +345,7 @@ const BrandProfile = () => {
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="Briefly describe what your brand does and its value proposition..."
+                placeholder="Briefly describe what your brand does..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />

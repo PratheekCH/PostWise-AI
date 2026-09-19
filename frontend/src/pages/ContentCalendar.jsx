@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { calendarAPI, postAPI } from '../services/api';
 import CalendarGrid from '../components/CalendarGrid';
 import PostEditorModal from '../components/PostEditorModal';
-import { Calendar as CalendarIcon, Sparkles, ChevronLeft, ChevronRight, Download, List, Grid, Plus, Clock, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Sparkles, ChevronLeft, ChevronRight, Download, List, Grid, Plus, FileSpreadsheet, FileJson } from 'lucide-react';
 
 const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
   const { activeBrand, showToast } = useAuth();
@@ -15,7 +15,7 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
 
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
   const [year, setYear] = useState(currentDate.getFullYear());
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
 
   const [editingPost, setEditingPost] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -101,10 +101,10 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
         date: targetDateStr,
         timeSlot: '10:00 AM',
         platform: activeBrand?.platforms[0] || 'Instagram',
-        title: 'New Social Post',
+        idea: 'New Post Idea',
         caption: 'Write caption for this post...',
         hashtags: ['#PostWise'],
-        postType: 'Single Image',
+        postType: 'Educational',
         status: 'draft',
       });
       setPosts([...posts, res.data.post]);
@@ -115,19 +115,38 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
     }
   };
 
-  const handleExportJSON = () => {
-    if (posts.length === 0) {
-      showToast('No posts to export', 'info');
-      return;
+  const handleExportJSON = async () => {
+    if (!activeCalendar) return;
+    try {
+      const response = await calendarAPI.exportJSON(activeCalendar._id);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `calendar_${activeCalendar._id}.json`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Calendar JSON exported!', 'success');
+    } catch (e) {
+      showToast('Failed to export JSON', 'error');
     }
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(posts, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `PostWise_Calendar_${month}_${year}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast('Calendar exported as JSON', 'success');
+  };
+
+  const handleExportCSV = async () => {
+    if (!activeCalendar) return;
+    try {
+      const response = await calendarAPI.exportCSV(activeCalendar._id);
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `calendar_${activeCalendar._id}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Calendar CSV exported!', 'success');
+    } catch (e) {
+      showToast('Failed to export CSV', 'error');
+    }
   };
 
   const monthNames = [
@@ -155,7 +174,7 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           {/* View Mode Toggle */}
           <div
             style={{
@@ -200,9 +219,14 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
             </button>
           </div>
 
-          <button onClick={handleExportJSON} className="btn btn-secondary">
-            <Download size={16} />
-            <span>Export JSON</span>
+          <button onClick={handleExportJSON} className="btn btn-secondary btn-sm" title="Download JSON file">
+            <FileJson size={16} />
+            <span>JSON</span>
+          </button>
+
+          <button onClick={handleExportCSV} className="btn btn-secondary btn-sm" title="Download CSV file">
+            <FileSpreadsheet size={16} />
+            <span>CSV</span>
           </button>
 
           <button onClick={onOpenAiGenerator} className="btn btn-gradient">
@@ -308,10 +332,9 @@ const ContentCalendar = ({ selectedCalendarId, onOpenAiGenerator }) => {
                         {p.platform}
                       </span>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#f8fafc' }}>{p.title}</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#f8fafc' }}>{p.idea || p.title}</div>
                         <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.2rem', display: 'flex', gap: '0.8rem' }}>
                           <span>📅 {dateFormatted}</span>
-                          <span>⏰ {p.timeSlot || '09:00 AM'}</span>
                           <span>• Format: {p.postType}</span>
                         </div>
                       </div>

@@ -26,7 +26,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token on 401 if not on login route
       if (!window.location.pathname.includes('/login')) {
         localStorage.removeItem('postwise_token');
         localStorage.removeItem('postwise_user');
@@ -57,6 +56,10 @@ export const calendarAPI = {
   generateCalendar: (data) => api.post('/calendars/generate', data),
   getCalendars: () => api.get('/calendars'),
   getCalendarById: (id) => api.get(`/calendars/${id}`),
+  exportJSONUrl: (id) => `/api/calendars/${id}/export/json`,
+  exportCSVUrl: (id) => `/api/calendars/${id}/export/csv`,
+  exportJSON: (id) => api.get(`/calendars/${id}/export/json`, { responseType: 'blob' }),
+  exportCSV: (id) => api.get(`/calendars/${id}/export/csv`, { responseType: 'blob' }),
   deleteCalendar: (id) => api.delete(`/calendars/${id}`),
 };
 

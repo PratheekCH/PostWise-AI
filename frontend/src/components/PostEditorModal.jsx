@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { postAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { X, Sparkles, Calendar, Clock, RefreshCw, Save, Trash2, CheckCircle, Image, MessageSquare, Lightbulb, Hash } from 'lucide-react';
+import { X, Sparkles, RefreshCw, Save, Trash2, Calendar, Clock } from 'lucide-react';
+
+const POST_TYPES = ['Educational', 'Promotional', 'Behind-the-Scenes', 'Interactive', 'Thought Leadership'];
 
 const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }) => {
   const { showToast } = useAuth();
 
-  const [title, setTitle] = useState('');
+  const [idea, setIdea] = useState('');
   const [caption, setCaption] = useState('');
   const [hashtagsStr, setHashtagsStr] = useState('');
   const [platform, setPlatform] = useState('Instagram');
   const [status, setStatus] = useState('draft');
-  const [postType, setPostType] = useState('Single Image');
+  const [postType, setPostType] = useState('Educational');
   const [dateStr, setDateStr] = useState('');
   const [timeSlot, setTimeSlot] = useState('09:00 AM');
-  const [imagePrompt, setImagePrompt] = useState('');
-  const [engagementTip, setEngagementTip] = useState('');
 
   const [customInstruction, setCustomInstruction] = useState('');
   const [regenerating, setRegenerating] = useState(false);
@@ -23,15 +23,13 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
 
   useEffect(() => {
     if (post) {
-      setTitle(post.title || '');
+      setIdea(post.idea || post.title || '');
       setCaption(post.caption || '');
       setHashtagsStr(Array.isArray(post.hashtags) ? post.hashtags.join(' ') : '');
       setPlatform(post.platform || 'Instagram');
       setStatus(post.status || 'draft');
-      setPostType(post.postType || 'Single Image');
+      setPostType(post.postType || 'Educational');
       setTimeSlot(post.timeSlot || '09:00 AM');
-      setImagePrompt(post.imagePrompt || '');
-      setEngagementTip(post.engagementTip || '');
 
       if (post.date) {
         const d = new Date(post.date);
@@ -53,7 +51,8 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
         .filter((h) => h.length > 1);
 
       const res = await postAPI.updatePost(post._id, {
-        title,
+        idea,
+        title: idea,
         caption,
         hashtags: formattedHashtags,
         platform,
@@ -61,8 +60,6 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
         postType,
         date: dateStr,
         timeSlot,
-        imagePrompt,
-        engagementTip,
       });
 
       showToast('Post updated successfully!', 'success');
@@ -79,12 +76,10 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
     setRegenerating(true);
     try {
       const res = await postAPI.regeneratePost(post._id, customInstruction);
-      setTitle(res.data.post.title);
+      setIdea(res.data.post.idea || res.data.post.title);
       setCaption(res.data.post.caption);
       setHashtagsStr(Array.isArray(res.data.post.hashtags) ? res.data.post.hashtags.join(' ') : '');
-      setImagePrompt(res.data.post.imagePrompt || '');
-      setEngagementTip(res.data.post.engagementTip || '');
-      showToast('Post regenerated with AI!', 'success');
+      showToast('Post content regenerated with AI!', 'success');
       if (onPostUpdated) onPostUpdated(res.data.post);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to regenerate post', 'error');
@@ -107,7 +102,7 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: '750px' }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" style={{ maxWidth: '720px' }} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -124,15 +119,15 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
         {/* Body */}
         <form onSubmit={handleSave}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-            {/* Title & Platform Row */}
+            {/* Title / Idea & Platform Row */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Post Headline / Title</label>
+                <label className="form-label">Post Idea / Topic</label>
                 <input
                   type="text"
                   className="form-input"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  value={idea}
+                  onChange={(e) => setIdea(e.target.value)}
                   required
                 />
               </div>
@@ -142,9 +137,7 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
                 <select className="form-select" value={platform} onChange={(e) => setPlatform(e.target.value)}>
                   <option value="Instagram">Instagram</option>
                   <option value="LinkedIn">LinkedIn</option>
-                  <option value="X/Twitter">X/Twitter</option>
-                  <option value="TikTok">TikTok</option>
-                  <option value="Facebook">Facebook</option>
+                  <option value="X">X (Twitter)</option>
                 </select>
               </div>
 
@@ -158,7 +151,7 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
               </div>
             </div>
 
-            {/* Date, Time & Format Row */}
+            {/* Date & Format Row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Scheduled Date</label>
@@ -186,11 +179,11 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Content Format</label>
                 <select className="form-select" value={postType} onChange={(e) => setPostType(e.target.value)}>
-                  <option value="Single Image">Single Image</option>
-                  <option value="Carousel">Carousel</option>
-                  <option value="Reel / Short Video">Reel / Video</option>
-                  <option value="Text Article">Text Article</option>
-                  <option value="Poll / Question">Poll / Q&A</option>
+                  {POST_TYPES.map((pt) => (
+                    <option key={pt} value={pt}>
+                      {pt}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -216,53 +209,10 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
               <input
                 type="text"
                 className="form-input"
-                placeholder="#Brand #Niche #Strategy"
+                placeholder="#Brand #Strategy #AI"
                 value={hashtagsStr}
                 onChange={(e) => setHashtagsStr(e.target.value)}
               />
-            </div>
-
-            {/* AI Image Prompt & Engagement Tip */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div
-                style={{
-                  background: 'rgba(30, 41, 59, 0.5)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '12px',
-                  padding: '0.85rem',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: '#ec4899', marginBottom: '0.4rem' }}>
-                  <Image size={15} /> AI Visual / Image Suggestion
-                </div>
-                <textarea
-                  className="form-textarea"
-                  rows={2}
-                  style={{ fontSize: '0.82rem' }}
-                  value={imagePrompt}
-                  onChange={(e) => setImagePrompt(e.target.value)}
-                />
-              </div>
-
-              <div
-                style={{
-                  background: 'rgba(30, 41, 59, 0.5)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '12px',
-                  padding: '0.85rem',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: '#14b8a6', marginBottom: '0.4rem' }}>
-                  <Lightbulb size={15} /> Engagement Tip
-                </div>
-                <textarea
-                  className="form-textarea"
-                  rows={2}
-                  style={{ fontSize: '0.82rem' }}
-                  value={engagementTip}
-                  onChange={(e) => setEngagementTip(e.target.value)}
-                />
-              </div>
             </div>
 
             {/* AI Single-Post Regeneration Box */}
@@ -277,7 +227,7 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.88rem' }}>
                   <Sparkles size={16} color="#ec4899" />
-                  <span>Regenerate Post Content with AI</span>
+                  <span>Regenerate ONLY this post with AI</span>
                 </div>
                 <button
                   type="button"
@@ -294,7 +244,7 @@ const PostEditorModal = ({ post, isOpen, onClose, onPostUpdated, onPostDeleted }
                 type="text"
                 className="form-input"
                 style={{ fontSize: '0.83rem', background: 'rgba(15, 23, 42, 0.6)' }}
-                placeholder="Optional AI prompt tweak (e.g. Make it shorter, add a punchy question, emphasize special discount)"
+                placeholder="Optional AI prompt tweak (e.g. Make it shorter, add a punchy question)"
                 value={customInstruction}
                 onChange={(e) => setCustomInstruction(e.target.value)}
               />
