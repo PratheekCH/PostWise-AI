@@ -1,7 +1,7 @@
 /**
  * AI Service for PostWise-AI
- * Supports OpenAI API (gpt-4o-mini / gpt-3.5-turbo) with structured JSON generation,
- * and smart contextual mock mode fallback when key is absent or API fails.
+ * Supports Groq API (llama-3.3-70b-versatile) & OpenAI API (gpt-4o-mini)
+ * with structured JSON generation and smart dynamic fallback mock mode.
  */
 
 const https = require('https');
@@ -40,15 +40,27 @@ function formatDateString(d) {
   return `${year}-${month}-${day}`;
 }
 
-// Call OpenAI API via HTTPS request
-async function callOpenAI(prompt, apiKey) {
+// Call LLM API (Groq API or OpenAI API)
+async function callLLM({ prompt, groqApiKey, openAiApiKey }) {
+  let hostname = 'api.groq.com';
+  let path = '/openai/v1/chat/completions';
+  let apiKey = groqApiKey;
+  let model = 'llama-3.3-70b-versatile';
+
+  if (!groqApiKey && openAiApiKey) {
+    hostname = 'api.openai.com';
+    path = '/v1/chat/completions';
+    apiKey = openAiApiKey;
+    model = 'gpt-4o-mini';
+  }
+
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: model,
       messages: [
         {
           role: 'system',
-          content: 'You are an expert social media manager. Respond ONLY with valid JSON string matching the specified format.'
+          content: 'You are an expert social media manager. Respond ONLY with a valid, clean JSON object matching the requested schema.'
         },
         { role: 'user', content: prompt }
       ],
@@ -57,8 +69,8 @@ async function callOpenAI(prompt, apiKey) {
     });
 
     const options = {
-      hostname: 'api.openai.com',
-      path: '/v1/chat/completions',
+      hostname: hostname,
+      path: path,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -77,10 +89,10 @@ async function callOpenAI(prompt, apiKey) {
             const contentStr = parsed.choices[0].message.content;
             resolve(JSON.parse(contentStr));
           } catch (e) {
-            reject(new Error('Failed to parse OpenAI JSON response'));
+            reject(new Error(`Failed to parse API JSON response: ${e.message}`));
           }
         } else {
-          reject(new Error(`OpenAI API returned status ${res.statusCode}: ${data}`));
+          reject(new Error(`API returned status ${res.statusCode}: ${data}`));
         }
       });
     });
@@ -106,11 +118,14 @@ const generateCalendarPosts = async ({ brand, startDate, month, year }) => {
     start = new Date();
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const groqApiKey = (process.env.GROQ_API || process.env.GROQ_API_KEY || '').trim();
+  const openAiApiKey = (process.env.OPENAI_API_KEY || '').trim();
 
-  if (apiKey && apiKey.trim() && apiKey.startsWith('sk-')) {
+  if (groqApiKey || openAiApiKey) {
     try {
-      console.log('[AI Service] Generating 30 posts via OpenAI API...');
+      const apiProvider = groqApiKey ? 'Groq API (llama-3.3-70b-versatile)' : 'OpenAI API (gpt-4o-mini)';
+      console.log(`[AI Service] Generating 30 posts via ${apiProvider}...`);
+
       const prompt = `
 Generate a 30-day social media content calendar for:
 Brand Name: "${brandName}"
@@ -138,8 +153,9 @@ Requirements:
 }
 `;
 
-      const aiResponse = await callOpenAI(prompt, apiKey);
+      const aiResponse = await callLLM({ prompt, groqApiKey, openAiApiKey });
       if (aiResponse && Array.isArray(aiResponse.posts) && aiResponse.posts.length > 0) {
+        console.log(`[AI Service Success] Successfully generated ${aiResponse.posts.length} posts via API!`);
         return aiResponse.posts.map((p, i) => {
           const postDate = new Date(start);
           postDate.setDate(postDate.getDate() + i);
@@ -155,7 +171,7 @@ Requirements:
         });
       }
     } catch (error) {
-      console.warn(`[AI Service Warning] OpenAI API call failed (${error.message}). Switching seamlessly to Mock Mode fallback.`);
+      console.warn(`[AI Service Warning] API call failed (${error.message}). Switching seamlessly to Mock Mode fallback.`);
     }
   }
 
@@ -210,9 +226,10 @@ const regenerateSinglePost = async ({ post, brand, customInstruction }) => {
   const audience = brand.targetAudience || 'Audience';
   const platform = post.platform || 'Instagram';
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const groqApiKey = (process.env.GROQ_API || process.env.GROQ_API_KEY || '').trim();
+  const openAiApiKey = (process.env.OPENAI_API_KEY || '').trim();
 
-  if (apiKey && apiKey.trim() && apiKey.startsWith('sk-')) {
+  if (groqApiKey || openAiApiKey) {
     try {
       const prompt = `
 Regenerate a single social media post for:
@@ -234,7 +251,7 @@ Return JSON:
   "hashtags": ["#tag1", "#tag2", "#tag3"]
 }
 `;
-      const aiResponse = await callOpenAI(prompt, apiKey);
+      const aiResponse = await callLLM({ prompt, groqApiKey, openAiApiKey });
       if (aiResponse && aiResponse.caption) {
         return {
           idea: aiResponse.idea || `[Updated] ${post.idea}`,
@@ -243,7 +260,7 @@ Return JSON:
         };
       }
     } catch (e) {
-      console.warn('[AI Service Warning] Single post regeneration via OpenAI failed, using fallback.');
+      console.warn('[AI Service Warning] Single post regeneration via API failed, using fallback.');
     }
   }
 
